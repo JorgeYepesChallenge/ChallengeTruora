@@ -1,0 +1,113 @@
+{
+  "name": "OnboardAI - local validator flow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "onboarding/create",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "name": "Webhook Onboarding",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "boolean": [],
+          "number": [],
+          "string": [
+            { "name": "payload", "value": "={{ $json }}" },
+            { "name": "expected_schema", "value": "" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "={{ $env.VALIDATOR_URL }}",
+        "jsonParameters": true,
+        "options": { "bodyContentType": "json" },
+        "body": "={\n  \"payload\": $json[\"payload\"],\n  \"expected_schema\": $json[\"expected_schema\"]\n}"
+      },
+      "name": "Validator (local)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "input": "={\n  \"system\": \"Eres OnboardAssistant. Analiza la salida del validador y resume problemas principales en JSON. Devuelve: {summary, issues, checklist, snippets}.\",\n  \"input\": \"Validador: \" + JSON.stringify($json)\n}",
+        "temperature": 0.2,
+        "maxTokens": 600
+      },
+      "name": "OpenAI - Analyze",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "={{ $env.OPENAI_API_KEY }}",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/onboarding_requests",
+        "jsonParameters": true,
+        "options": { "bodyContentType": "json" },
+        "headers": {
+          "Content-Type": "application/json",
+          "apikey": "={{ $env.SUPABASE_ANON_KEY }}",
+          "Authorization": "={{ $env.SUPABASE_ANON_KEY }}"
+        },
+        "body": "={\n  \"raw_payload\": $json[\"payload\"],\n  \"status\": \"received\",\n  \"created_at\": new Date().toISOString()\n}"
+      },
+      "name": "Supabase - Insert request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "webhookUri": "={{ $env.SLACK_WEBHOOK }}",
+        "text": "*Nuevo onboarding recibido* 🎉\nResumen:\n```{{$json[\"choices\"] ? $json[\"choices\"][0][\"message\"][\"content\"] : JSON.stringify($json)}}```"
+      },
+      "name": "Slack Notify (optional)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1500, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Onboarding": {
+      "main": [[{ "node": "Set Payload", "type": "main", "index": 0 }]]
+    },
+    "Set Payload": {
+      "main": [[{ "node": "Validator (local)", "type": "main", "index": 0 }]]
+    },
+    "Validator (local)": {
+      "main": [
+        [{ "node": "OpenAI - Analyze", "type": "main", "index": 0 }],
+        [{ "node": "Supabase - Insert request", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI - Analyze": {
+      "main": [[{ "node": "Slack Notify (optional)", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {}
+}

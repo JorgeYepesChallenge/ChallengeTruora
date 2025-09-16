@@ -1,0 +1,38 @@
+version: "3.8"
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    env_file:
+      - .env
+    environment:
+      - GENERIC_TIMEZONE=America/Bogota
+      - N8N_BASIC_AUTH_ACTIVE=false
+      # You can set more n8n-specific envs here if needed
+    volumes:
+      - ~/.n8n:/home/node/.n8n
+    depends_on:
+      - validator
+      - web
+    restart: unless-stopped
+
+  validator:
+    build:
+      context: ./validator
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./validator:/app
+    restart: unless-stopped
+
+  web:
+    image: python:3.11-slim
+    working_dir: /usr/src/app
+    volumes:
+      - ./web:/usr/src/app
+    command: python -m http.server 8080 --bind 0.0.0.0
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
