@@ -2,36 +2,83 @@
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>OnboardAI - Local test</title>
+  <title>OnboardAI - Test con n8n Cloud</title>
   <style>
-    body{font-family:system-ui,Segoe UI,Roboto;max-width:900px;margin:36px;}
-    textarea{width:100%;height:200px}
-    input, button{padding:8px;margin:6px 0}
-    pre{background:#f6f8fa;padding:12px;border-radius:6px}
+    body { font-family: system-ui, Segoe UI, Roboto; max-width: 900px; margin: 36px; }
+    textarea { width: 100%; height: 180px; }
+    input, button { padding: 8px; margin: 6px 0; }
+    pre { background: #f6f8fa; padding: 12px; border-radius: 6px; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <h2>OnboardAI - Enviar payload a n8n webhook</h2>
-  <label>Webhook URL (ej: http://localhost:5678/webhook/onboarding/create)</label><br/>
-  <input id="webhook" type="text" style="width:100%" value="http://localhost:5678/webhook/onboarding/create"/>
-  <p>Payload JSON:</p>
-  <textarea id="payload">{ "client": "demo", "pedido": 123, "items": [{"sku":"S1","qty":2}] }</textarea>
-  <p>Expected schema (opcional):</p>
-  <textarea id="schema">{ "type": "object", "properties": { "client": {"type":"string"} }, "required": ["client"] }</textarea>
+  <h2>OnboardAI - Enviar payload de prueba a n8n webhook</h2>
+
+  <label>Webhook URL</label><br/>
+  <input id="webhook" type="text" style="width:100%" 
+    value="https://challengetruorapt1.app.n8n.cloud/webhook-test/onboarding/create"/>
+
+  <h3>Payload manual (JSON)</h3>
+  <textarea id="payload">{
+  "role": "Analista de datos",
+  "category": "Data",
+  "confidence": 0.92,
+  "status": "pending",
+  "summary": { "summary": "El candidato tiene experiencia en SQL y Python." },
+  "issues": [ { "field": "portfolio", "issue": "Falta link a proyectos recientes" } ],
+  "checklist": [ "Revisar experiencia previa", "Confirmar certificaciones" ]
+}</textarea>
+
+  <h3>Expected schema (opcional)</h3>
+  <textarea id="schema">{
+  "type": "object",
+  "properties": { "role": {"type":"string"}, "category":{"type":"string"} },
+  "required": ["role","category"]
+}</textarea>
+
+  <h3>Subir CSV de prueba</h3>
+  <input type="file" id="csvfile" accept=".csv" />
+  <pre id="csvpreview">CSV no cargado</pre>
+
   <p><button id="send">Enviar a webhook</button></p>
   <h3>Respuesta</h3>
   <pre id="response">Sin enviar</pre>
 
 <script>
+// Parse CSV simple (asume encabezados en la primera fila)
+function parseCSV(text) {
+  const [headerLine, ...lines] = text.trim().split("\n");
+  const headers = headerLine.split(",").map(h => h.trim());
+  return lines.map(line => {
+    const values = line.split(",").map(v => v.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = values[i]);
+    return obj;
+  });
+}
+
+let csvData = null;
+
+document.getElementById('csvfile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  csvData = parseCSV(text);
+  document.getElementById('csvpreview').textContent = JSON.stringify(csvData, null, 2);
+});
+
 document.getElementById('send').addEventListener('click', async () => {
   const url = document.getElementById('webhook').value;
   let payload = JSON.parse(document.getElementById('payload').value || '{}');
   const schemaText = document.getElementById('schema').value.trim();
+
+  // si hay csv cargado, lo añadimos al body
   const body = {
     payload,
+    csv_data: csvData || null,
     expected_schema: schemaText ? JSON.parse(schemaText) : null,
     test_endpoint: null
   };
+
   try {
     const r = await fetch(url, {
       method: 'POST',

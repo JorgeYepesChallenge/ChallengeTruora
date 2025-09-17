@@ -1,13 +1,12 @@
 {
-  "name": "OnboardAI - local validator flow",
+  "name": "OnboardAI - validator flow (Slack paralelo, FIX quotes)",
   "nodes": [
     {
       "parameters": {
         "path": "onboarding/create",
         "method": "POST",
         "responseMode": "lastNode",
-        "responseData": "firstEntryJson",
-        "options": {}
+        "responseData": "firstEntryJson"
       },
       "name": "Webhook Onboarding",
       "type": "n8n-nodes-base.webhook",
@@ -16,96 +15,151 @@
     },
     {
       "parameters": {
-        "values": {
-          "boolean": [],
-          "number": [],
-          "string": [
-            { "name": "payload", "value": "={{ $json }}" },
-            { "name": "expected_schema", "value": "" }
-          ]
-        },
-        "options": {}
+        "functionCode": "const role = $json.role || \"growth\";\n\nlet payload;\nlet expected_schema;\n\nif (role === \"growth\") {\n  payload = {\n    role: \"growth\",\n    campaign: \"Spring Sale 2025\",\n    budget: 5000,\n    conversions: 120,\n    roi: \"alta\" // ❌ forzar error\n  };\n  expected_schema = {\n    type: \"object\",\n    properties: {\n      role: { type: \"string\" },\n      campaign: { type: \"string\" },\n      budget: { type: \"number\" },\n      conversions: { type: \"number\" },\n      roi: { type: \"number\" }\n    },\n    required: [\"role\", \"campaign\", \"budget\", \"conversions\", \"roi\"]\n  };\n} else if (role === \"support\") {\n  payload = {\n    role: \"support\",\n    ticket_id: \"TCK-1001\",\n    customer_message: \"No puedo acceder a mi cuenta desde ayer\",\n    priority: \"alta\"\n  };\n  expected_schema = {\n    type: \"object\",\n    properties: {\n      role: { type: \"string\" },\n      ticket_id: { type: \"string\" },\n      customer_message: { type: \"string\" },\n      priority: { type: \"string\", enum: [\"baja\", \"media\", \"alta\"] }\n    },\n    required: [\"role\", \"ticket_id\", \"customer_message\", \"priority\"]\n  };\n} else if (role === \"product\") {\n  payload = {\n    role: \"product\",\n    feedback_id: 99,\n    customer_feedback: \"La app se cierra cuando intento pagar\",\n    severity: 5\n  };\n  expected_schema = {\n    type: \"object\",\n    properties: {\n      role: { type: \"string\" },\n      feedback_id: { type: \"number\" },\n      customer_feedback: { type: \"string\" },\n      severity: { type: \"number\", minimum: 1, maximum: 5 }\n    },\n    required: [\"role\", \"feedback_id\", \"customer_feedback\", \"severity\"]\n  };\n}\n\nreturn [{ json: { payload, expected_schema } }];"
       },
-      "name": "Set Payload",
-      "type": "n8n-nodes-base.set",
+      "name": "Prepare RAW Body",
+      "type": "n8n-nodes-base.function",
       "typeVersion": 1,
       "position": [500, 300]
     },
     {
       "parameters": {
         "requestMethod": "POST",
-        "url": "={{ $env.VALIDATOR_URL }}",
+        "url": "https://nh3cw2pl-8000.use2.devtunnels.ms/validate",
         "jsonParameters": true,
         "options": { "bodyContentType": "json" },
-        "body": "={\n  \"payload\": $json[\"payload\"],\n  \"expected_schema\": $json[\"expected_schema\"]\n}"
+        "bodyParametersJson": "={{ $json }}"
       },
-      "name": "Validator (local)",
+      "name": "Validator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
       "position": [750, 300]
     },
     {
       "parameters": {
-        "model": "gpt-4o-mini",
-        "input": "={\n  \"system\": \"Eres OnboardAssistant. Analiza la salida del validador y resume problemas principales en JSON. Devuelve: {summary, issues, checklist, snippets}.\",\n  \"input\": \"Validador: \" + JSON.stringify($json)\n}",
-        "temperature": 0.2,
-        "maxTokens": 600
+        "functionCode": "const result = $json;\nresult.role = $json.payload?.role || null;\nreturn [{ json: result }];"
       },
-      "name": "OpenAI - Analyze",
-      "type": "n8n-nodes-base.openAi",
+      "name": "Add Role",
+      "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [1000, 300],
-      "credentials": {
-        "openAiApi": {
-          "id": "={{ $env.OPENAI_API_KEY }}",
-          "name": "OpenAI Account"
-        }
-      }
+      "position": [900, 300]
     },
     {
       "parameters": {
         "requestMethod": "POST",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/onboarding_requests",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "jsonParameters": true,
+        "options": { "bodyContentType": "json" },
+        "headers": {
+          "Authorization": "Bearer {{$vars.OPENROUTER_API_KEY}}",
+          "Content-Type": "application/json"
+        },
+        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Eres OnboardAssistant. Recibirás la salida del validador como JSON. Tu tarea es: 1. Resumir en un párrafo claro el estado general del onboarding. 2. Extraer los problemas o inconsistencias encontrados como una lista JSON con este formato: [ {\\\"field\\\": \\\"nombre_del_campo\\\", \\\"issue\\\": \\\"descripcion_del_problema\\\"} ]. Devuelve estrictamente en formato JSON: { \\\"summary\\\": \\\"...\\\", \\\"issues\\\": [...] }\"},\n    {\"role\": \"user\", \"content\": \"Entrada del validador: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"}\n  ]\n}"
+      },
+      "name": "OpenRouter - Resumen & Issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1150, 150]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "jsonParameters": true,
+        "options": { "bodyContentType": "json" },
+        "headers": {
+          "Authorization": "Bearer {{$vars.OPENROUTER_API_KEY}}",
+          "Content-Type": "application/json"
+        },
+        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Eres OnboardAssistant especializado en clasificación. Recibirás la información resumida e issues de un proceso de onboarding. Tu tarea es: 1. Clasificar el caso en una categoría corta (ejemplos: \\\"onboarding_completo\\\", \\\"onboarding_incompleto\\\", \\\"datos_inconsistentes\\\"). 2. Estimar un nivel de confianza entre 0 y 1 sobre tu clasificación. Devuelve estrictamente en formato JSON: { \\\"category\\\": \\\"string\\\", \\\"confidence\\\": number }\"},\n    {\"role\": \"user\", \"content\": \"Entrada: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"}\n  ]\n}"
+      },
+      "name": "OpenRouter - Clasificación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1150, 350]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "jsonParameters": true,
+        "options": { "bodyContentType": "json" },
+        "headers": {
+          "Authorization": "Bearer {{$vars.OPENROUTER_API_KEY}}",
+          "Content-Type": "application/json"
+        },
+        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Eres OnboardAssistant. Recibirás un resumen e issues de un proceso de onboarding. Tu tarea es generar una lista de pasos accionables para el equipo de soporte/ops que permitan resolver el caso. Los pasos deben ser claros, prácticos y en forma de lista. Devuelve estrictamente en formato JSON: { \\\"checklist\\\": [ \\\"Paso 1...\\\", \\\"Paso 2...\\\", \\\"Paso 3...\\\" ] }\"},\n    {\"role\": \"user\", \"content\": \"Entrada: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"}\n  ]\n}"
+      },
+      "name": "OpenRouter - Checklist",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1150, 550]
+    },
+    {
+      "parameters": { "mode": "mergeByIndex" },
+      "name": "Merge AI Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [1400, 350]
+    },
+    {
+      "parameters": {
+        "functionCode": "const clean = (raw) => {\n  if (typeof raw !== \"string\") return raw;\n  return raw\n    .replace(/<s>\\s*\\[OUT\\]\\s*/g, \"\")\n    .replace(/\\s*\\[\\/OUT\\]\\s*<\\/s>?/g, \"\")\n    .trim();\n};\n\nlet summary = clean($json.summary);\nlet issues = clean($json.issues);\nlet checklist = clean($json.checklist);\n\ntry { summary = JSON.parse(summary); } catch {}\ntry { issues = JSON.parse(issues); } catch {}\ntry { checklist = JSON.parse(checklist); } catch {}\n\nreturn [{\n  json: {\n    ...$json,\n    summary,\n    issues,\n    checklist\n  }\n}];"
+      },
+      "name": "Clean AI Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1500, 350]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://xowjzfloppuaqthmlxhf.supabase.co/rest/v1/onboarding_requests",
         "jsonParameters": true,
         "options": { "bodyContentType": "json" },
         "headers": {
           "Content-Type": "application/json",
-          "apikey": "={{ $env.SUPABASE_ANON_KEY }}",
-          "Authorization": "={{ $env.SUPABASE_ANON_KEY }}"
+          "apikey": "SUPABASE_API_KEY",
+          "Authorization": "SUPABASE_API_KEY"
         },
-        "body": "={\n  \"raw_payload\": $json[\"payload\"],\n  \"status\": \"received\",\n  \"created_at\": new Date().toISOString()\n}"
+        "bodyParametersJson": "={{ {\n  \"raw_payload\": $json[\"payload\"],\n  \"summary\": $json[\"summary\"],\n  \"issues\": $json[\"issues\"],\n  \"category\": $json[\"category\"],\n  \"confidence\": $json[\"confidence\"],\n  \"checklist\": $json[\"checklist\"],\n  \"role\": $json[\"role\"],\n  \"status\": \"processed\",\n  \"created_at\": $now\n} }}"
       },
       "name": "Supabase - Insert request",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "position": [1250, 300]
+      "position": [1700, 300]
     },
     {
       "parameters": {
-        "webhookUri": "={{ $env.SLACK_WEBHOOK }}",
-        "text": "*Nuevo onboarding recibido* 🎉\nResumen:\n```{{$json[\"choices\"] ? $json[\"choices\"][0][\"message\"][\"content\"] : JSON.stringify($json)}}```"
+        "webhookUri": "https://hooks.slack.com/services/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",
+        "text": "*Nuevo onboarding recibido* 🎉\\nRol: {{$json[\"role\"]}}\\nResumen:\\n```{{$json[\"summary\"].summary || JSON.stringify($json[\"summary\"])}}```\\nCategoría: {{$json[\"category\"]}}"
       },
-      "name": "Slack Notify (optional)",
+      "name": "Slack Notify",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 1,
-      "position": [1500, 300]
+      "position": [1700, 500]
     }
   ],
   "connections": {
-    "Webhook Onboarding": {
-      "main": [[{ "node": "Set Payload", "type": "main", "index": 0 }]]
-    },
-    "Set Payload": {
-      "main": [[{ "node": "Validator (local)", "type": "main", "index": 0 }]]
-    },
-    "Validator (local)": {
+    "Webhook Onboarding": { "main": [[{ "node": "Prepare RAW Body", "type": "main", "index": 0 }]] },
+    "Prepare RAW Body": { "main": [[{ "node": "Validator", "type": "main", "index": 0 }]] },
+    "Validator": { "main": [[{ "node": "Add Role", "type": "main", "index": 0 }]] },
+    "Add Role": {
       "main": [
-        [{ "node": "OpenAI - Analyze", "type": "main", "index": 0 }],
-        [{ "node": "Supabase - Insert request", "type": "main", "index": 0 }]
+        [{ "node": "OpenRouter - Resumen & Issues", "type": "main", "index": 0 }],
+        [{ "node": "OpenRouter - Clasificación", "type": "main", "index": 0 }],
+        [{ "node": "OpenRouter - Checklist", "type": "main", "index": 0 }]
       ]
     },
-    "OpenAI - Analyze": {
-      "main": [[{ "node": "Slack Notify (optional)", "type": "main", "index": 0 }]]
+    "OpenRouter - Resumen & Issues": { "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]] },
+    "OpenRouter - Clasificación": { "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]] },
+    "OpenRouter - Checklist": { "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]] },
+    "Merge AI Results": { "main": [[{ "node": "Clean AI Output", "type": "main", "index": 0 }]] },
+    "Clean AI Output": {
+      "main": [
+        [{ "node": "Supabase - Insert request", "type": "main", "index": 0 }],
+        [{ "node": "Slack Notify", "type": "main", "index": 0 }]
+      ]
     }
   },
   "active": false,

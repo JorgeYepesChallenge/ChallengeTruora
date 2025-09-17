@@ -1,0 +1,155 @@
+{
+  "name": "OnboardAI - modular validator flow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "onboarding/create",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "name": "Webhook Onboarding",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "payload", "value": "={{ $json[\"payload\"] }}" },
+            { "name": "expected_schema", "value": "={{ $json[\"expected_schema\"] }}" }
+          ]
+        },
+        "options": {
+          "keepOnlySet": true
+        }
+      },
+      "name": "Set Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://nh3cw2pl-8000.use2.devtunnels.ms/validate",
+        "jsonParameters": true,
+        "options": {
+          "bodyContentType": "json"
+        },
+        "bodyParametersJson": "={\n  \"payload\": $json[\"payload\"],\n  \"expected_schema\": $json[\"expected_schema\"],\n  \"test_endpoint\": null\n}"
+      },
+      "name": "Validator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "resource": "Text",
+        "operation": "Complete",
+        "model": "gpt-4o-mini",
+        "prompt": "Eres OnboardAssistant. Analiza la salida del validador y responde en JSON:\n{\n  \"summary\": \"breve resumen\",\n  \"issues\": [\"error1\", \"error2\"]\n}"
+      },
+      "name": "OpenAI - Resumen & Issues",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "resource": "Text",
+        "operation": "Complete",
+        "model": "gpt-4o-mini",
+        "prompt": "Clasifica esta solicitud en JSON:\n{\n  \"category\": \"documentacion_incompleta | datos_inconsistentes | formato_invalido | aprobado\",\n  \"confidence\": 0.0-1.0,\n  \"explanation\": \"razón breve\"\n}"
+      },
+      "name": "OpenAI - Clasificación",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "resource": "Text",
+        "operation": "Complete",
+        "model": "gpt-4o-mini",
+        "prompt": "Devuelve un checklist en JSON:\n{\n  \"checklist\": [\n    \"Paso 1: ...\",\n    \"Paso 2: ...\",\n    \"Paso 3: ...\"\n  ]\n}"
+      },
+      "name": "OpenAI - Checklist",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1000, 600]
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "name": "Merge AI Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://xowjzfloppuaqthmlxhf.supabase.co/rest/v1/onboarding_requests",
+        "jsonParameters": true,
+        "options": { "bodyContentType": "json" },
+        "headers": {
+          "Content-Type": "application/json",
+          "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhvd2p6ZmxvcHB1YXF0aG1seGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3NzUyNjEsImV4cCI6MjA3MzM1MTI2MX0.L3sDVXP_l1ff_PunbQWLoYxdvUr2H4OS4sGs7_tIJKw",
+          "Authorization": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhvd2p6ZmxvcHB1YXF0aG1seGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3NzUyNjEsImV4cCI6MjA3MzM1MTI2MX0.L3sDVXP_l1ff_PunbQWLoYxdvUr2H4OS4sGs7_tIJKw"
+        },
+        "body": "={\n  \"raw_payload\": $json[\"payload\"],\n  \"summary\": $json[\"summary\"],\n  \"issues\": $json[\"issues\"],\n  \"category\": $json[\"category\"],\n  \"confidence\": $json[\"confidence\"],\n  \"checklist\": $json[\"checklist\"],\n  \"status\": \"processed\",\n  \"created_at\": new Date().toISOString()\n}"
+      },
+      "name": "Supabase - Insert request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "webhookUri": "https://hooks.slack.com/services/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",
+        "text": "*Nuevo onboarding recibido* 🎉\nResumen:\n```{{$json[\"summary\"]}}```\nCategoría: {{$json[\"category\"]}}"
+      },
+      "name": "Slack Notify",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1600, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Onboarding": {
+      "main": [[{ "node": "Set Payload", "type": "main", "index": 0 }]]
+    },
+    "Set Payload": {
+      "main": [[{ "node": "Validator", "type": "main", "index": 0 }]]
+    },
+    "Validator": {
+      "main": [
+        [{ "node": "OpenAI - Resumen & Issues", "type": "main", "index": 0 }],
+        [{ "node": "OpenAI - Clasificación", "type": "main", "index": 0 }],
+        [{ "node": "OpenAI - Checklist", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI - Resumen & Issues": {
+      "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]]
+    },
+    "OpenAI - Clasificación": {
+      "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]]
+    },
+    "OpenAI - Checklist": {
+      "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]]
+    },
+    "Merge AI Results": {
+      "main": [[{ "node": "Supabase - Insert request", "type": "main", "index": 0 }]]
+    },
+    "Supabase - Insert request": {
+      "main": [[{ "node": "Slack Notify", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {}
+}
