@@ -1,17 +1,22 @@
 {
-  "name": "OnboardAI - validator flow (Slack paralelo, FIX quotes)",
+  "name": "My workflow",
   "nodes": [
     {
       "parameters": {
+        "httpMethod": "POST",
         "path": "onboarding/create",
-        "method": "POST",
         "responseMode": "lastNode",
-        "responseData": "firstEntryJson"
+        "options": {}
       },
       "name": "Webhook Onboarding",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [250, 300]
+      "position": [
+        -1728,
+        16
+      ],
+      "id": "eb38e26c-3c75-4c6e-8a50-f40ba1695bea",
+      "webhookId": "344ba4ab-1ac9-4a3b-8939-72842c41a1b5"
     },
     {
       "parameters": {
@@ -20,20 +25,30 @@
       "name": "Prepare RAW Body",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [500, 300]
+      "position": [
+        -1552,
+        16
+      ],
+      "id": "ffb5520e-79ff-4cd4-8675-24ef1b48921a"
     },
     {
       "parameters": {
         "requestMethod": "POST",
         "url": "https://nh3cw2pl-8000.use2.devtunnels.ms/validate",
         "jsonParameters": true,
-        "options": { "bodyContentType": "json" },
+        "options": {
+          "bodyContentType": "json"
+        },
         "bodyParametersJson": "={{ $json }}"
       },
       "name": "Validator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "position": [750, 300]
+      "position": [
+        -1376,
+        16
+      ],
+      "id": "dbbbe2dd-374f-41c1-a340-62eee14f7d4a"
     },
     {
       "parameters": {
@@ -42,126 +57,317 @@
       "name": "Add Role",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [900, 300]
+      "position": [
+        -1200,
+        16
+      ],
+      "id": "4d980e4c-6a70-4fa2-8a4a-3f97072b059c"
     },
     {
       "parameters": {
         "requestMethod": "POST",
         "url": "https://openrouter.ai/api/v1/chat/completions",
         "jsonParameters": true,
-        "options": { "bodyContentType": "json" },
-        "headers": {
-          "Authorization": "Bearer {{$vars.OPENROUTER_API_KEY}}",
-          "Content-Type": "application/json"
+        "options": {
+          "bodyContentType": "json"
         },
-        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Eres OnboardAssistant. Recibirás la salida del validador como JSON. Tu tarea es: 1. Resumir en un párrafo claro el estado general del onboarding. 2. Extraer los problemas o inconsistencias encontrados como una lista JSON con este formato: [ {\\\"field\\\": \\\"nombre_del_campo\\\", \\\"issue\\\": \\\"descripcion_del_problema\\\"} ]. Devuelve estrictamente en formato JSON: { \\\"summary\\\": \\\"...\\\", \\\"issues\\\": [...] }\"},\n    {\"role\": \"user\", \"content\": \"Entrada del validador: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"}\n  ]\n}"
+        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres OnboardAssistant. Recibirás la salida del validador como JSON. Tu tarea es:\\n1. Resumir en un párrafo claro el estado general del onboarding (campo: summary).\\n2. Extraer los problemas o inconsistencias encontrados como una lista JSON con este formato: [{\\\"field\\\": \\\"nombre_del_campo\\\", \\\"issue\\\": \\\"descripcion_del_problema\\\"}] (campo: issues).\\n3. Generar SIEMPRE un objeto JSON con la siguiente estructura exacta:\\n{\\n  \\\"role\\\": \\\"string (rol detectado o 'unknown')\\\",\\n  \\\"category\\\": \\\"string (categoría detectada o 'uncategorized')\\\",\\n  \\\"confidence\\\": \\\"number entre 0 y 1 o null\\\",\\n  \\\"status\\\": \\\"string (ej. 'processed', 'error', etc.)\\\",\\n  \\\"summary\\\": \\\"string con resumen general\\\",\\n  \\\"issues\\\": [ {\\\"field\\\": \\\"...\\\", \\\"issue\\\": \\\"...\\\"} ],\\n  \\\"checklist\\\": [ \\\"paso 1\\\", \\\"paso 2\\\", ... ]\\n}\\nSi no tienes información para algún campo, rellénalo con valores por defecto: role = \\\"unknown\\\", category = \\\"uncategorized\\\", confidence = null, status = \\\"processed\\\", checklist = [].\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Entrada del validador: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"\n    }\n  ]\n}\n",
+        "headerParametersJson": "={\n  \"Authorization\": \"Bearer {{$vars.OPENROUTER_API_KEY}}\",\n  \"Content-Type\": \"application/json\"\n}\n"
       },
       "name": "OpenRouter - Resumen & Issues",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "position": [1150, 150]
+      "position": [
+        -944,
+        -192
+      ],
+      "id": "c4dc8ebd-7fdd-400b-9555-49e440874501"
     },
     {
       "parameters": {
         "requestMethod": "POST",
         "url": "https://openrouter.ai/api/v1/chat/completions",
         "jsonParameters": true,
-        "options": { "bodyContentType": "json" },
-        "headers": {
-          "Authorization": "Bearer {{$vars.OPENROUTER_API_KEY}}",
-          "Content-Type": "application/json"
+        "options": {
+          "bodyContentType": "json"
         },
-        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Eres OnboardAssistant especializado en clasificación. Recibirás la información resumida e issues de un proceso de onboarding. Tu tarea es: 1. Clasificar el caso en una categoría corta (ejemplos: \\\"onboarding_completo\\\", \\\"onboarding_incompleto\\\", \\\"datos_inconsistentes\\\"). 2. Estimar un nivel de confianza entre 0 y 1 sobre tu clasificación. Devuelve estrictamente en formato JSON: { \\\"category\\\": \\\"string\\\", \\\"confidence\\\": number }\"},\n    {\"role\": \"user\", \"content\": \"Entrada: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"}\n  ]\n}"
+        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres OnboardAssistant especializado en clasificación. Recibirás la información resumida e issues de un proceso de onboarding.\\nTu tarea es:\\n1. Clasificar el caso en una categoría corta (ejemplos: \\\"onboarding_completo\\\", \\\"onboarding_incompleto\\\", \\\"datos_inconsistentes\\\").\\n2. Estimar un nivel de confianza entre 0 y 1 sobre tu clasificación.\\n3. Devolver SIEMPRE un objeto JSON con la siguiente estructura exacta:\\n{\\n  \\\"role\\\": \\\"string (rol detectado o 'unknown')\\\",\\n  \\\"category\\\": \\\"string (ej. 'onboarding_completo')\\\",\\n  \\\"confidence\\\": number (ej. 0.85),\\n  \\\"status\\\": \\\"string (ej. 'processed')\\\",\\n  \\\"summary\\\": \\\"string con resumen general o vacío\\\",\\n  \\\"issues\\\": [ {\\\"field\\\": \\\"...\\\", \\\"issue\\\": \\\"...\\\"} ],\\n  \\\"checklist\\\": [ \\\"paso 1\\\", \\\"paso 2\\\", ... ]\\n}\\nSi no tienes información para algún campo, usa valores por defecto: role = \\\"unknown\\\", status = \\\"processed\\\", summary = \\\"\\\", issues = [], checklist = [].\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Entrada: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"\n    }\n  ]\n}\n",
+        "headerParametersJson": "={\n  \"Authorization\": \"Bearer {{$vars.OPENROUTER_API_KEY}}\",\n  \"Content-Type\": \"application/json\"\n}\n"
       },
       "name": "OpenRouter - Clasificación",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "position": [1150, 350]
+      "position": [
+        -944,
+        16
+      ],
+      "id": "f8e57478-ed09-4264-a762-cef08ea6f438"
     },
     {
       "parameters": {
         "requestMethod": "POST",
         "url": "https://openrouter.ai/api/v1/chat/completions",
         "jsonParameters": true,
-        "options": { "bodyContentType": "json" },
-        "headers": {
-          "Authorization": "Bearer {{$vars.OPENROUTER_API_KEY}}",
-          "Content-Type": "application/json"
+        "options": {
+          "bodyContentType": "json"
         },
-        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Eres OnboardAssistant. Recibirás un resumen e issues de un proceso de onboarding. Tu tarea es generar una lista de pasos accionables para el equipo de soporte/ops que permitan resolver el caso. Los pasos deben ser claros, prácticos y en forma de lista. Devuelve estrictamente en formato JSON: { \\\"checklist\\\": [ \\\"Paso 1...\\\", \\\"Paso 2...\\\", \\\"Paso 3...\\\" ] }\"},\n    {\"role\": \"user\", \"content\": \"Entrada: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"}\n  ]\n}"
+        "bodyParametersJson": "={\n  \"model\": \"mistralai/mistral-7b-instruct\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres OnboardAssistant. Recibirás un resumen e issues de un proceso de onboarding.\\nTu tarea es:\\n1. Generar una lista de pasos accionables para el equipo de soporte/ops que permitan resolver el caso.\\n2. Los pasos deben ser claros, prácticos y en forma de lista.\\n3. Devuelve SIEMPRE un objeto JSON con la siguiente estructura exacta:\\n{\\n  \\\"role\\\": \\\"string (rol detectado o 'unknown')\\\",\\n  \\\"category\\\": \\\"string (ej. 'onboarding_completo')\\\",\\n  \\\"confidence\\\": number (ej. 0.85),\\n  \\\"status\\\": \\\"string (ej. 'processed')\\\",\\n  \\\"summary\\\": \\\"string con resumen general o vacío\\\",\\n  \\\"issues\\\": [ {\\\"field\\\": \\\"...\\\", \\\"issue\\\": \\\"...\\\"} ],\\n  \\\"checklist\\\": [ \\\"paso 1\\\", \\\"paso 2\\\", ... ]\\n}\\nSi no tienes información para algún campo, usa valores por defecto: role = \\\"unknown\\\", category = \\\"uncategorized\\\", confidence = 0, status = \\\"processed\\\", summary = \\\"\\\", issues = [], checklist = [].\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Entrada: {{ JSON.stringify($json).replace(/\\\"/g, '\\\\\\\"') }}\"\n    }\n  ]\n}\n",
+        "headerParametersJson": "={\n  \"Authorization\": \"Bearer {{$vars.OPENROUTER_API_KEY}}\",\n  \"Content-Type\": \"application/json\"\n}\n"
       },
       "name": "OpenRouter - Checklist",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "position": [1150, 550]
-    },
-    {
-      "parameters": { "mode": "mergeByIndex" },
-      "name": "Merge AI Results",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 1,
-      "position": [1400, 350]
+      "position": [
+        -944,
+        208
+      ],
+      "id": "3ad7ecb5-743c-4843-a268-ecf071dc9829"
     },
     {
       "parameters": {
-        "functionCode": "const clean = (raw) => {\n  if (typeof raw !== \"string\") return raw;\n  return raw\n    .replace(/<s>\\s*\\[OUT\\]\\s*/g, \"\")\n    .replace(/\\s*\\[\\/OUT\\]\\s*<\\/s>?/g, \"\")\n    .trim();\n};\n\nlet summary = clean($json.summary);\nlet issues = clean($json.issues);\nlet checklist = clean($json.checklist);\n\ntry { summary = JSON.parse(summary); } catch {}\ntry { issues = JSON.parse(issues); } catch {}\ntry { checklist = JSON.parse(checklist); } catch {}\n\nreturn [{\n  json: {\n    ...$json,\n    summary,\n    issues,\n    checklist\n  }\n}];"
+        "mode": "mergeByIndex"
+      },
+      "name": "Merge AI Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        32
+      ],
+      "id": "321d5a6a-f15b-4ccd-ac83-29033bfa7fd1"
+    },
+    {
+      "parameters": {
+        "functionCode": "// función para limpiar cadenas\nconst clean = (raw) => {\n  if (typeof raw !== \"string\") return raw;\n  return raw\n    .replace(/<s>/g, \"\")\n    .replace(/```json|```/g, \"\")\n    .trim();\n};\n\n// extraer el contenido generado por la IA\nlet content = $json.choices?.[0]?.message?.content ?? \"\";\ncontent = clean(content);\n\nlet parsed = {};\nif (content && (content.startsWith(\"{\") || content.startsWith(\"[\"))) {\n  try {\n    parsed = JSON.parse(content);\n  } catch (e) {\n    parsed = {};\n  }\n}\n\n// salida normalizada para Slack\nreturn [{\n  json: {\n    role: parsed.role || \"—\",\n    category: parsed.category || \"—\",\n    confidence: parsed.confidence ?? \"—\",\n    status: parsed.status || \"—\",\n    summary: (\n      typeof parsed.summary === \"string\"\n        ? { summary: parsed.summary }\n        : (parsed.summary || { summary: \"La IA no devolvió información válida\" })\n    ),\n    issues: parsed.issues || [],\n    checklist: parsed.checklist || []\n  }\n}];\n\n"
       },
       "name": "Clean AI Output",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [1500, 350]
+      "position": [
+        -480,
+        32
+      ],
+      "id": "947bfe29-d551-439b-b519-5ef231db0796"
     },
     {
       "parameters": {
         "requestMethod": "POST",
         "url": "https://xowjzfloppuaqthmlxhf.supabase.co/rest/v1/onboarding_requests",
-        "jsonParameters": true,
-        "options": { "bodyContentType": "json" },
-        "headers": {
-          "Content-Type": "application/json",
-          "apikey": "SUPABASE_API_KEY",
-          "Authorization": "SUPABASE_API_KEY"
+        "options": {
+          "bodyContentType": "json"
         },
-        "bodyParametersJson": "={{ {\n  \"raw_payload\": $json[\"payload\"],\n  \"summary\": $json[\"summary\"],\n  \"issues\": $json[\"issues\"],\n  \"category\": $json[\"category\"],\n  \"confidence\": $json[\"confidence\"],\n  \"checklist\": $json[\"checklist\"],\n  \"role\": $json[\"role\"],\n  \"status\": \"processed\",\n  \"created_at\": $now\n} }}"
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "raw_payload",
+              "value": "={{ $json.payload || {} }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $json.summary || {} }}"
+            },
+            {
+              "name": "issues",
+              "value": "={{ $json.issues || [] }}"
+            },
+            {
+              "name": "confidence",
+              "value": "={{ isNaN(Number($json.confidence)) ? 0 : Number($json.confidence) }}"
+            },
+            {
+              "name": "checklist",
+              "value": "={{ $json.checklist || [] }}"
+            },
+            {
+              "name": "role",
+              "value": "={{ $json.role || \"—\" }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.status || \"processed\" }}"
+            },
+            {
+              "name": "created_at",
+              "value": "={{ $now }}"
+            }
+          ]
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_API_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$vars.SUPABASE_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
       },
       "name": "Supabase - Insert request",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "position": [1700, 300]
+      "position": [
+        -272,
+        -112
+      ],
+      "id": "bd37927a-4298-40fd-bd8a-375a460aadc2"
     },
     {
       "parameters": {
-        "webhookUri": "https://hooks.slack.com/services/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",
-        "text": "*Nuevo onboarding recibido* 🎉\\nRol: {{$json[\"role\"]}}\\nResumen:\\n```{{$json[\"summary\"].summary || JSON.stringify($json[\"summary\"])}}```\\nCategoría: {{$json[\"category\"]}}"
+        "authentication": "oAuth2",
+        "channel": "#challenge-truora",
+        "text": "={{ \n  \"*🎉 Nuevo onboarding:*\\n\" +\n  \"• Rol: \" + ($json.role || \"—\") + \"\\n\" +\n  \"• Categoría: \" + ($json.category || \"—\") + \"\\n\" +\n  \"• Resumen: \" + (\n    ($json.summary && $json.summary.summary)\n      ? $json.summary.summary\n      : (typeof $json.summary === \"string\" ? $json.summary : \"—\")\n  ) + \"\\n\" +\n  \"• Confianza: \" + ($json.confidence || \"—\") +\n  \" | Estado: \" + ($json.status || \"—\")\n}}",
+        "otherOptions": {},
+        "attachments": []
       },
       "name": "Slack Notify",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 1,
-      "position": [1700, 500]
+      "position": [
+        -272,
+        192
+      ],
+      "id": "573c80e5-fc07-45bd-952f-1ea8d5dbf5c5",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "2l62pkq1hs0KdHgS",
+          "name": "Slack account 2"
+        }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
-    "Webhook Onboarding": { "main": [[{ "node": "Prepare RAW Body", "type": "main", "index": 0 }]] },
-    "Prepare RAW Body": { "main": [[{ "node": "Validator", "type": "main", "index": 0 }]] },
-    "Validator": { "main": [[{ "node": "Add Role", "type": "main", "index": 0 }]] },
-    "Add Role": {
+    "Webhook Onboarding": {
       "main": [
-        [{ "node": "OpenRouter - Resumen & Issues", "type": "main", "index": 0 }],
-        [{ "node": "OpenRouter - Clasificación", "type": "main", "index": 0 }],
-        [{ "node": "OpenRouter - Checklist", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Prepare RAW Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "OpenRouter - Resumen & Issues": { "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]] },
-    "OpenRouter - Clasificación": { "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]] },
-    "OpenRouter - Checklist": { "main": [[{ "node": "Merge AI Results", "type": "main", "index": 0 }]] },
-    "Merge AI Results": { "main": [[{ "node": "Clean AI Output", "type": "main", "index": 0 }]] },
+    "Prepare RAW Body": {
+      "main": [
+        [
+          {
+            "node": "Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validator": {
+      "main": [
+        [
+          {
+            "node": "Add Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Role": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter - Resumen & Issues",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "OpenRouter - Clasificación",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "OpenRouter - Checklist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter - Resumen & Issues": {
+      "main": [
+        [
+          {
+            "node": "Merge AI Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter - Clasificación": {
+      "main": [
+        [
+          {
+            "node": "Merge AI Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter - Checklist": {
+      "main": [
+        [
+          {
+            "node": "Merge AI Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge AI Results": {
+      "main": [
+        [
+          {
+            "node": "Clean AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Clean AI Output": {
       "main": [
-        [{ "node": "Supabase - Insert request", "type": "main", "index": 0 }],
-        [{ "node": "Slack Notify", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Slack Notify",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Supabase - Insert request",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
   "active": false,
-  "settings": {}
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bc84a991-873f-42e6-8c11-2fe599b079cf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "61aa3492ab2ac2b63b4641d16fd11834f7a73322ae27fbb7e03c99ec64549399"
+  },
+  "id": "XMC67Vr2rY7TQvYm",
+  "tags": []
 }
